@@ -1,52 +1,45 @@
-from django.shortcuts import render
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 from .models import Task
-from .serializers import TaskSerializer
+import json
+
 # Create your views here.
 
-@api_view(['GET', 'POST'])
+@csrf_exempt
 def task_list(request):
-    if request == 'GET':
-        #Get all tasks from the database
-        tasks = Task.objects.all()
-        #convert to JSON
-        serializer = TaskSerializer(tasks,many=True)
-        return Response(serializer.data)
-    
-    elif request.method == 'POST':
-        #Get data from request
-        serializer = TaskSerializer(data=request.data)
-        #check if data is valid
-        if serializer.is_valid():
-            #Save to database
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-@api_view(['GET','PATCH','DELETE'])
-def task_detail(request,pk):
-    try:
-        #Find the task by its ID(pk = primary_key)
-        task = Task.objects.get(pk=pk)
-    except Task.DoesNotExist:
-        return Response (status=status.HTTP_404_NOT_FOUND)
-    
-    
     if request.method == 'GET':
-        #Return the single task
-        serializer =TaskSerializer(task)
-        return Response(serializer.data)
-    
-    elif request.method == 'PATCH':
-        #Update the task with new data
-        serializer = TaskSerializer(task, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    elif request.method == 'DELETE':
-        # Delete the task
-        task.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        tasks_qs = Task.objects.all.values('id', 'title', 'completed', 'created_at')
+        #converting querylist to list
+        tasks_list = list(tasks_qs)
+        return JsonResponse (tasks_list, safe=False)
+
+
+    if request.method == 'POST':
+        #get data from request body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error' : 'Invalid JSON'}, status =400)
+        
+        #extract the fields
+        title = data.get('title')
+        completed = data.get('completed', False)  #we put false so when we create a new task it takes false in the beginning as default
+
+        #validate that title exists
+        if not title:
+            return JsonResponse ({'error': 'Title is required'}, status = 400)
+        
+        #create task in db
+        task = Task.objects.create(title = title , completed = completed)
+
+        #Return Sucess Message
+        return JsonResponse({
+            'message' : 'Task created successfully',
+            'task' :{
+                'id' : task.id,
+                'title' : task.title,
+                'completed': task.completed,
+                'created_at': task.created_at.isoformat()
+            }
+        } , status = 201)
+    return JsonResponse ({'error' : 'Method not allowed'}, status = 405)
