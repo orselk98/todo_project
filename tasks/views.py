@@ -28,6 +28,12 @@ def task_list(request):
         #validate that title exists
         if not title:
             return JsonResponse ({'error': 'Title is required'}, status = 400)
+        #Validate if title is not empty
+        if title.strip() =='':
+            return JsonResponse ({'error': 'Title cannot be empty'}, status = 400)
+        #validate if length of title is not more than 200
+        if len(title)>200:
+            return JsonResponse ({'error': 'Title cannot be more than 200 chars'}, status =400)
         
         #create task in db
         task = Task.objects.create(title = title , completed = completed)
