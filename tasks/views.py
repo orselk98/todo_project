@@ -7,14 +7,23 @@ import json
 
 @csrf_exempt
 def task_list(request):
+
     if request.method == 'GET':
-        tasks_qs = Task.objects.all().values('id', 'title', 'completed', 'created_at')
+        #Check if user wants to filter by completed status
+        completed = request.GET.get('completed')
+
+        if completed is not None:
+            completed_bool = completed.lower() == 'true'
+            tasks_qs = Task.objects.filter(completed=completed_bool).values('id', 'title', 'completed', 'created_at', 'priority')
+        else:
+            tasks_qs = Task.objects.all().values('id', 'title', 'completed', 'created_at', 'priority')
         #converting querylist to list
         tasks_list = list(tasks_qs)
         return JsonResponse (tasks_list, safe=False)
 
 
     if request.method == 'POST':
+
         #get data from request body
         try:
             data = json.loads(request.body)
@@ -23,7 +32,8 @@ def task_list(request):
         
         #extract the fields
         title = data.get('title')
-        completed = data.get('completed', False)  #we put false so when we create a new task it takes false in the beginning as default
+        completed = data.get('completed', False) #we put false so when we create a new task it takes false in the beginning as default
+        priority = data.get('priority', 'medium')
 
         #validate that title exists
         if not title:
@@ -34,9 +44,12 @@ def task_list(request):
         #validate if length of title is not more than 200
         if len(title)>200:
             return JsonResponse ({'error': 'Title cannot be more than 200 chars'}, status =400)
+        #Validate priority value
+        if priority not in ['low', 'medium', 'high']:
+            return JsonResponse({'error': 'Invalid priority value'}, status=400)
         
         #create task in db
-        task = Task.objects.create(title = title , completed = completed)
+        task = Task.objects.create(title = title , completed = completed, priority=priority)
 
         #Return Sucess Message
         return JsonResponse({
@@ -45,6 +58,7 @@ def task_list(request):
                 'id' : task.id,
                 'title' : task.title,
                 'completed': task.completed,
+                'priority': task.priority,
                 'created_at': task.created_at.isoformat()
             }
         } , status = 201)
@@ -66,10 +80,12 @@ def task_detail (request, pk):
             'id' : task.id,
             'title':task.title,
             'completed' : task.completed,
+            'priority' : task.priority,
             'created_at' : task.created_at.isoformat()
         }
         return JsonResponse(task_dict, safe=False)
     
+
     if request.method == 'PATCH':
         #get data from request body
         try:
@@ -80,12 +96,18 @@ def task_detail (request, pk):
         #extract the files
         title = data.get('title')
         completed =data.get('completed')
+        priority = data.get('priority')
+
 
         #update the task fields
         if title:
             task.title = title
         if completed is not None: #check for none because false is avalid value
             task.completed= completed
+        if priority:
+            if priority not in ['low', 'medium', 'high']:
+                return JsonResponse({'error': 'Invalid priority value'}, status=400)
+            task.priority = priority
 
         #save to db
         task.save()
@@ -97,6 +119,7 @@ def task_detail (request, pk):
                 'id' : task.id,
                 'title' : task.title,
                 'completed' : task.completed,
+                'priority' : task.priority,
                 'created_at' : task.created_at.isoformat()
             }
         })
