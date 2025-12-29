@@ -9,16 +9,26 @@ import json
 def task_list(request):
 
     if request.method == 'GET':
-        #Check if user wants to filter by completed status
+        
+        #Get filter parameters
         completed = request.GET.get('completed')
+        priority = request.GET.get('priority')
 
+        #Get all tasks
+        tasks_qs = Task.objects.all()
+        
+        #applying completed filter if exists
         if completed is not None:
             completed_bool = completed.lower() == 'true'
-            tasks_qs = Task.objects.filter(completed=completed_bool).values('id', 'title', 'completed', 'created_at', 'priority')
-        else:
-            tasks_qs = Task.objects.all().values('id', 'title', 'completed', 'created_at', 'priority')
-        #converting querylist to list
-        tasks_list = list(tasks_qs)
+            tasks_qs = tasks_qs.filter(completed=completed_bool)
+        
+        #applying priority filter if exists
+        if priority is not None:
+            if priority not in ['low', 'medium', 'high']:
+                return JsonResponse({'error': 'Invalid priority value'}, status=400)
+            tasks_qs = tasks_qs.filter(priority=priority)
+
+        tasks_list = list(tasks_qs.values('id', 'title', 'completed', 'created_at', 'priority'))
         return JsonResponse (tasks_list, safe=False)
 
 
